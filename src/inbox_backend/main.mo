@@ -3,6 +3,7 @@ import Array "mo:base/Array";
 import Time "mo:base/Time";
 import Text "mo:base/Text";
 import Result "mo:base/Result";
+import Buffer "mo:base/Buffer";
 
 import Types "./types";
 
@@ -11,7 +12,7 @@ shared (install) actor class Inbox(name : Text) = this {
   type Message = Types.Message;
 
   private stable var _name = name;
-  private stable var _version = "0.01";
+  private stable var _version = "0.0.1";
 
   private stable var _nextId : Nat = 1;
 
@@ -23,7 +24,7 @@ shared (install) actor class Inbox(name : Text) = this {
   private var _owner : Principal = install.caller;
 
   //block senders
-  private stable var _blacklist : [Text] = []; //allow proxys
+  private stable var _blacklist : [Text] = []; //allow proxys/clients
   private stable var _whitelist : [Principal] = [];
 
   public shared ({ caller }) func send(subject : Text, content : Text, sender : Text) : async Result.Result<Int, Text> {
@@ -38,6 +39,7 @@ shared (install) actor class Inbox(name : Text) = this {
             content = content;
             timestamp = Time.now();
             sender = sender;
+            client = caller;
 
           },
           newMessages,
@@ -108,6 +110,29 @@ shared (install) actor class Inbox(name : Text) = this {
   public shared ({ caller }) func changeOwner(newOwner : Principal) : async Result.Result<Int, Text> {
     if (caller == _owner) {
       _owner := newOwner;
+      #ok(1);
+    } else {
+      #err("no permission");
+    };
+  };
+
+  public shared ({ caller }) func allow(client : Principal) : async Result.Result<Int, Text> {
+    if (caller == _owner) {
+      let pb = Buffer.fromArray<Principal>(_whitelist);
+      pb.add(client);
+      _whitelist := Buffer.toArray(pb);
+
+      #ok(1);
+    } else {
+      #err("no permission");
+    };
+  };
+
+  public shared ({ caller }) func block(sender : Text) : async Result.Result<Int, Text> {
+    if (caller == _owner) {
+      let pb = Buffer.fromArray<Text>(_blacklist);
+      pb.add(sender);
+      _blacklist := Buffer.toArray(pb);
       #ok(1);
     } else {
       #err("no permission");

@@ -6,6 +6,7 @@ module Types {
         content: Text;
         timestamp: Int;
         sender: Text;
+        client: Principal;
        
     };
 }
