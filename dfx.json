@@ -1,0 +1,29 @@
+{
+  "canisters": {
+    "inbox_backend": {
+      "main": "src/inbox_backend/main.mo",
+      "type": "motoko"
+    },
+    "inbox_frontend": {
+      "dependencies": [
+        "inbox_backend"
+      ],
+      "frontend": {
+        "entrypoint": "src/inbox_frontend/src/index.html"
+      },
+      "source": [
+        "src/inbox_frontend/assets",
+        "dist/inbox_frontend/"
+      ],
+      "type": "assets"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
