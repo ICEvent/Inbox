@@ -1,5 +1,12 @@
 module Types {
 
+    public type Currency = {
+        #ICP;
+        #BTC;
+        #ETH;
+        
+    };
+
     public type Message = {
         id: Nat;
         subject: Text;

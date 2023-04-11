@@ -4,12 +4,28 @@ import Time "mo:base/Time";
 import Text "mo:base/Text";
 import Result "mo:base/Result";
 import Buffer "mo:base/Buffer";
+import Blob "mo:base/Blob";
+import Nat64 "mo:base/Nat64";
+import Int "mo:base/Int";
 
 import Types "./types";
+
+import ICPTypes "./ICPTypes";
+
+import CRC32 "./CRC32";
+import SHA224 "./SHA224";
+import Account "./account";
+import Hex "./hex";
+import Utils "./utils";
+
 
 shared (install) actor class Inbox(name : Text) = this {
 
   type Message = Types.Message;
+  type Currency = Types.Currency;
+
+  let ICPLedger : ICPTypes.Ledger = actor ("ryjl3-tyaaa-aaaaa-aaaba-cai");
+  let ICP_FEE : Nat64 = 10_000;
 
   private stable var _name = name;
   private stable var _version = "0.0.1";
@@ -27,6 +43,63 @@ shared (install) actor class Inbox(name : Text) = this {
   private stable var _blacklist : [Text] = []; //allow proxys/clients
   private stable var _whitelist : [Principal] = [];
 
+  //=======================================================
+  //  WALLET (ICP/BTC/ETH...)
+  //=======================================================
+
+  public shared ({ caller }) func transfer(currency : Currency, amount : Nat64, to : Principal) : async Result.Result<Nat64, Text> {
+    if (caller == _owner) {
+      switch (currency) {
+        case (#ICP) {
+         await transferICP(amount, to);
+        };
+        case (#BTC) {
+         await transferBTC(amount, to);
+        };
+        case (#ETH) {
+        await  transferETH(amount, to);
+        };
+      };
+    } else {
+      #err("no permission");
+    };
+
+  };
+
+  private func transferICP(amount : Nat64, to : Principal) : async Result.Result<Nat64, Text> {
+    let toAccount = Account.accountIdentifier(to, Account.defaultSubaccount());
+    let res = await ICPLedger.transfer({
+      memo = 1;
+      from_subaccount = null;
+      to = Blob.fromArray(Hex.decode(Utils.accountIdToHex(toAccount)));
+      amount = { e8s = amount };
+      fee = { e8s = ICP_FEE };
+      created_at_time = ?{
+        timestamp_nanos = Nat64.fromNat(Int.abs(Time.now()));
+      };
+    });
+    switch (res) {
+      case (#Ok(blockIndex)) {
+        #ok(blockIndex);
+      };
+      case (#Err(#InsufficientFunds { balance })) {
+        #err("No enough fund! The balance is only " # debug_show balance # " e8s");
+      };
+      case (#Err(other)) {
+        #err("Unexpected error: " # debug_show other);
+      };
+    };
+
+  };
+  private func transferETH(amount : Nat64, to : Principal) :async Result.Result<Nat64, Text> {
+    #err("not support");
+  };
+  private func transferBTC(amount : Nat64, to : Principal) :async Result.Result<Nat64, Text> {
+    #err("not support");
+  };
+  //=======================================================
+  //  MESSAGE
+  //=======================================================
   /**
     drop message to this inbox
   **/
@@ -113,7 +186,7 @@ shared (install) actor class Inbox(name : Text) = this {
     } else { [] };
   };
 
-  //change the inbox's owner 
+  //change the inbox's owner
   public shared ({ caller }) func changeOwner(newOwner : Principal) : async Result.Result<Int, Text> {
     if (caller == _owner) {
       _owner := newOwner;
