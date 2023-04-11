@@ -27,7 +27,10 @@ shared (install) actor class Inbox(name : Text) = this {
   private stable var _blacklist : [Text] = []; //allow proxys/clients
   private stable var _whitelist : [Principal] = [];
 
-  public shared ({ caller }) func send(subject : Text, content : Text, sender : Text) : async Result.Result<Int, Text> {
+  /**
+    drop message to this inbox
+  **/
+  public shared ({ caller }) func drop(subject : Text, content : Text, sender : Text) : async Result.Result<Int, Text> {
     if (_isAllowed(caller)) {
       if (_isBlocked(sender)) {
         #err("this sender is blocked by inbox!");
@@ -52,7 +55,8 @@ shared (install) actor class Inbox(name : Text) = this {
     };
   };
 
-  public shared ({ caller }) func readMessage(id : Nat) : async Result.Result<Int, Text> {
+  //change new message to read
+  public shared ({ caller }) func read(id : Nat) : async Result.Result<Int, Text> {
     if (caller == _owner) {
       let fm = List.find(
         newMessages,
@@ -75,13 +79,15 @@ shared (install) actor class Inbox(name : Text) = this {
 
   };
 
-  public query ({ caller }) func fetchNewMessages() : async [Message] {
+  //get all new messages
+  public query ({ caller }) func fetch() : async [Message] {
     if (caller == _owner) {
       List.toArray(newMessages);
     } else { [] };
   };
 
-  public query ({ caller }) func searchMessages(start : Int, end : Int, q : ?Text) : async [Message] {
+  // search messages from read
+  public query ({ caller }) func search(start : Int, end : Int, q : ?Text) : async [Message] {
     if (caller == _owner) {
       switch (q) {
         case (?q) {
@@ -107,6 +113,7 @@ shared (install) actor class Inbox(name : Text) = this {
     } else { [] };
   };
 
+  //change the inbox's owner 
   public shared ({ caller }) func changeOwner(newOwner : Principal) : async Result.Result<Int, Text> {
     if (caller == _owner) {
       _owner := newOwner;
@@ -116,6 +123,7 @@ shared (install) actor class Inbox(name : Text) = this {
     };
   };
 
+  //allow one to drop message
   public shared ({ caller }) func allow(client : Principal) : async Result.Result<Int, Text> {
     if (caller == _owner) {
       let pb = Buffer.fromArray<Principal>(_whitelist);
@@ -128,6 +136,7 @@ shared (install) actor class Inbox(name : Text) = this {
     };
   };
 
+  //block specific sender
   public shared ({ caller }) func block(sender : Text) : async Result.Result<Int, Text> {
     if (caller == _owner) {
       let pb = Buffer.fromArray<Text>(_blacklist);
