@@ -39,8 +39,13 @@ shared (install) actor class Inbox(name : Text) = this {
 
   private var _owner : Principal = install.caller;
 
+  //members of this inbox(read messages)
+  private stable var _members : [Principal] = [];
+
   //block senders
-  private stable var _blacklist : [Text] = []; //allow proxys/clients
+  private stable var _blacklist : [Text] = []; 
+
+  //allow carriers
   private stable var _whitelist : [Principal] = [];
 
   //=======================================================
@@ -103,7 +108,7 @@ shared (install) actor class Inbox(name : Text) = this {
   /**
     drop message to this inbox
   **/
-  public shared ({ caller }) func drop(subject : Text, content : Text, sender : Text) : async Result.Result<Int, Text> {
+  public shared ({ caller }) func drop(subject : Types.Subject, content : Types.Content, sender : Types.Sender) : async Result.Result<Int, Text> {
     if (_isAllowed(caller)) {
       if (_isBlocked(sender)) {
         #err("this sender is blocked by inbox!");
@@ -115,7 +120,7 @@ shared (install) actor class Inbox(name : Text) = this {
             content = content;
             timestamp = Time.now();
             sender = sender;
-            client = caller;
+            carrier = caller;
 
           },
           newMessages,
@@ -130,7 +135,7 @@ shared (install) actor class Inbox(name : Text) = this {
 
   //change new message to read
   public shared ({ caller }) func read(id : Nat) : async Result.Result<Int, Text> {
-    if (caller == _owner) {
+    if (_isMember(caller)) {
       let fm = List.find(
         newMessages,
         func(m : Message) : Bool {
@@ -140,6 +145,7 @@ shared (install) actor class Inbox(name : Text) = this {
       switch (fm) {
         case (?fm) {
           messages := List.push(fm, messages);
+          newMessages := List.filter(newMessages,func(m: Message):Bool{m.id != id});
           #ok(1);
         };
         case (_) {
@@ -154,14 +160,14 @@ shared (install) actor class Inbox(name : Text) = this {
 
   //get all new messages
   public query ({ caller }) func fetch() : async [Message] {
-    if (caller == _owner) {
+    if (_isMember(caller)) {
       List.toArray(newMessages);
     } else { [] };
   };
 
   // search messages from read
   public query ({ caller }) func search(start : Int, end : Int, q : ?Text) : async [Message] {
-    if (caller == _owner) {
+    if (_isMember(caller)) {
       switch (q) {
         case (?q) {
           let fl = List.filter(
@@ -208,7 +214,18 @@ shared (install) actor class Inbox(name : Text) = this {
       #err("no permission");
     };
   };
+  //add inbox member
+  public shared ({ caller }) func addMember(member : Principal) : async Result.Result<Int, Text> {
+    if (caller == _owner) {
+      let pb = Buffer.fromArray<Principal>(_members);
+      pb.add(member);
+      _members := Buffer.toArray(pb);
 
+      #ok(1);
+    } else {
+      #err("no permission");
+    };
+  };
   //block specific sender
   public shared ({ caller }) func block(sender : Text) : async Result.Result<Int, Text> {
     if (caller == _owner) {
@@ -233,11 +250,11 @@ shared (install) actor class Inbox(name : Text) = this {
       case (_) { false };
     };
   };
-  private func _isAllowed(proxy : Principal) : Bool {
+  private func _isAllowed(carrier : Principal) : Bool {
     let fb = Array.find<Principal>(
       _whitelist,
       func(w : Principal) : Bool {
-        proxy == w;
+        carrier == w;
       },
     );
     switch (fb) {
@@ -245,7 +262,18 @@ shared (install) actor class Inbox(name : Text) = this {
       case (_) { false };
     };
   };
-
+  private func _isMember(member : Principal) : Bool {
+    let fb = Array.find<Principal>(
+      _members,
+      func(w : Principal) : Bool {
+        member == w;
+      },
+    );
+    switch (fb) {
+      case (?fb) { true };
+      case (_) { false };
+    };
+  };
   system func preupgrade() {
     _stableMessages := List.toArray(messages);
     _stableNewMessages := List.toArray(newMessages);

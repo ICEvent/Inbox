@@ -1,5 +1,10 @@
 module Types {
 
+    public type Subject = Text;
+    public type Content = Text;
+    public type Sender = Text;
+    public type Inbox = Text;
+
     public type Currency = {
         #ICP;
         #BTC;
@@ -9,11 +14,11 @@ module Types {
 
     public type Message = {
         id: Nat;
-        subject: Text;
-        content: Text;
+        subject: Subject;
+        content: Content;
         timestamp: Int;
-        sender: Text;
-        client: Principal;
+        sender: Sender;
+        carrier: Principal;
        
     };
 }
