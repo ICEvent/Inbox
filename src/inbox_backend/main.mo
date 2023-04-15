@@ -18,8 +18,7 @@ import Account "./account";
 import Hex "./hex";
 import Utils "./utils";
 
-
-shared (install) actor class Inbox(name : Text) = this {
+shared (install) actor class Inbox(init_name : Text) = this {
 
   type Message = Types.Message;
   type Currency = Types.Currency;
@@ -27,7 +26,7 @@ shared (install) actor class Inbox(name : Text) = this {
   let ICPLedger : ICPTypes.Ledger = actor ("ryjl3-tyaaa-aaaaa-aaaba-cai");
   let ICP_FEE : Nat64 = 10_000;
 
-  private stable var _name = name;
+  private stable var _name = init_name;
   private stable var _version = "0.0.1";
 
   private stable var _nextId : Nat = 1;
@@ -39,30 +38,35 @@ shared (install) actor class Inbox(name : Text) = this {
 
   private var _owner : Principal = install.caller;
 
-  //members of this inbox(read messages)
+  //members of this inbox
   private stable var _members : [Principal] = [];
 
   //block senders
-  private stable var _blacklist : [Text] = []; 
+  private stable var _blacklist : [Text] = [];
 
   //allow carriers
   private stable var _whitelist : [Principal] = [];
 
+  //get inbox name
+  public query func name() : async Text {
+    _name;
+  };
+
   //=======================================================
-  //  WALLET (ICP/BTC/ETH...)
+  // Canister WALLET (ICP/BTC/ETH...)
   //=======================================================
 
-  public shared ({ caller }) func transfer(currency : Currency, amount : Nat64, to : Principal) : async Result.Result<Nat64, Text> {
+  public shared ({ caller }) func transfer(currency : Currency,fromSub : ?Nat, amount : Nat64, to : Principal) : async Result.Result<Nat64, Text> {
     if (caller == _owner) {
       switch (currency) {
         case (#ICP) {
-         await transferICP(amount, to);
+          await transferICP(fromSub, amount, to);
         };
         case (#BTC) {
-         await transferBTC(amount, to);
+          await transferBTC(fromSub, amount, to);
         };
         case (#ETH) {
-        await  transferETH(amount, to);
+          await transferETH(fromSub, amount, to);
         };
       };
     } else {
@@ -71,11 +75,21 @@ shared (install) actor class Inbox(name : Text) = this {
 
   };
 
-  private func transferICP(amount : Nat64, to : Principal) : async Result.Result<Nat64, Text> {
+  private func transferICP(fromSub : ?Nat, amount : Nat64, to : Principal) : async Result.Result<Nat64, Text> {
     let toAccount = Account.accountIdentifier(to, Account.defaultSubaccount());
+    let subAccount : ?Blob = (
+      switch (fromSub) {
+        case (?fromSub) {
+          ?Utils.subToSubBlob(fromSub);
+        };
+        case (_) {
+          null;
+        };
+      }
+    );
     let res = await ICPLedger.transfer({
       memo = 1;
-      from_subaccount = null;
+      from_subaccount = subAccount;
       to = Blob.fromArray(Hex.decode(Utils.accountIdToHex(toAccount)));
       amount = { e8s = amount };
       fee = { e8s = ICP_FEE };
@@ -96,41 +110,44 @@ shared (install) actor class Inbox(name : Text) = this {
     };
 
   };
-  private func transferETH(amount : Nat64, to : Principal) :async Result.Result<Nat64, Text> {
-    #err("not support");
+
+  private func transferETH(fromSub : ?Nat, amount : Nat64, to : Principal) : async Result.Result<Nat64, Text> {
+    #err("not support yet");
   };
-  private func transferBTC(amount : Nat64, to : Principal) :async Result.Result<Nat64, Text> {
-    #err("not support");
+
+  private func transferBTC(fromSub : ?Nat, amount : Nat64, to : Principal) : async Result.Result<Nat64, Text> {
+    #err("not support yet");
   };
+
   //=======================================================
   //  MESSAGE
   //=======================================================
   /**
-    drop message to this inbox
+    drop a message to this inbox
   **/
   public shared ({ caller }) func drop(subject : Types.Subject, content : Types.Content, sender : Types.Sender) : async Result.Result<Int, Text> {
-    if (_isAllowed(caller)) {
-      if (_isBlocked(sender)) {
-        #err("this sender is blocked by inbox!");
-      } else {
-        newMessages := List.push(
-          {
-            id = _nextId;
-            subject = subject;
-            content = content;
-            timestamp = Time.now();
-            sender = sender;
-            carrier = caller;
-
-          },
-          newMessages,
-        );
-        _nextId := _nextId +1;
-        #ok(1);
-      };
+    // if (_isAllowed(caller)) {
+    if (_isBlocked(sender)) {
+      #err("this sender is blocked by inbox!");
     } else {
-      #err("not allow to send message to this inbox");
+      newMessages := List.push(
+        {
+          id = _nextId;
+          subject = subject;
+          content = content;
+          timestamp = Time.now();
+          sender = sender;
+          carrier = caller;
+
+        },
+        newMessages,
+      );
+      _nextId := _nextId +1;
+      #ok(1);
     };
+    // } else {
+    //   #err("not allow to send message to this inbox");
+    // };
   };
 
   //change new message to read
@@ -145,7 +162,7 @@ shared (install) actor class Inbox(name : Text) = this {
       switch (fm) {
         case (?fm) {
           messages := List.push(fm, messages);
-          newMessages := List.filter(newMessages,func(m: Message):Bool{m.id != id});
+          newMessages := List.filter(newMessages, func(m : Message) : Bool { m.id != id });
           #ok(1);
         };
         case (_) {
@@ -202,7 +219,7 @@ shared (install) actor class Inbox(name : Text) = this {
     };
   };
 
-  //allow one to drop message
+  //allow carrier to drop message
   public shared ({ caller }) func allow(client : Principal) : async Result.Result<Int, Text> {
     if (caller == _owner) {
       let pb = Buffer.fromArray<Principal>(_whitelist);
@@ -214,6 +231,7 @@ shared (install) actor class Inbox(name : Text) = this {
       #err("no permission");
     };
   };
+
   //add inbox member
   public shared ({ caller }) func addMember(member : Principal) : async Result.Result<Int, Text> {
     if (caller == _owner) {
@@ -226,6 +244,7 @@ shared (install) actor class Inbox(name : Text) = this {
       #err("no permission");
     };
   };
+
   //block specific sender
   public shared ({ caller }) func block(sender : Text) : async Result.Result<Int, Text> {
     if (caller == _owner) {
@@ -250,6 +269,7 @@ shared (install) actor class Inbox(name : Text) = this {
       case (_) { false };
     };
   };
+
   private func _isAllowed(carrier : Principal) : Bool {
     let fb = Array.find<Principal>(
       _whitelist,
@@ -262,6 +282,7 @@ shared (install) actor class Inbox(name : Text) = this {
       case (_) { false };
     };
   };
+
   private func _isMember(member : Principal) : Bool {
     let fb = Array.find<Principal>(
       _members,
@@ -274,10 +295,12 @@ shared (install) actor class Inbox(name : Text) = this {
       case (_) { false };
     };
   };
+
   system func preupgrade() {
     _stableMessages := List.toArray(messages);
     _stableNewMessages := List.toArray(newMessages);
   };
+
   system func postupgrade() {
     _stableMessages := [];
     _stableNewMessages := [];

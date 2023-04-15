@@ -1,10 +1,10 @@
 WEB3 INBOX
 ====================
 Own your server to own your data.
-one inbox to multiple dapps
+one inbox hooks to multiple dapps
 
 ---------     ---------     --------- 
-| user  | ==> | proxy |  => | inbox-1 |      
+| user  | ==> | carrier |  => | inbox-1 |      
 ---------     ---------     ---------
                   |
                  \/ 
@@ -13,6 +13,13 @@ one inbox to multiple dapps
               -----------
 
 1. create a canister (https://nns.ic0.app/)
-2. deploy Inbox to the created canister
-3. register canister on client/proxy (e.g. icevent.app)
-4. send message to registed name
+
+2. deploy Inbox module to the created canister
+   - git clone git@github.com:ICEvent/Inbox.git
+   - dfx deploy --network ic inbox_backend --argument "InboxName"
+   - (upgrade) dfx canister --network ic install inbox_backend --mode upgrade --argument "InboxName"
+
+
+3. register canister on carrier (e.g. icevent.app/inbox ...)
+
+4. send messages to registed name through carrier dapp
