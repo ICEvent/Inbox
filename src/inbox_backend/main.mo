@@ -52,6 +52,14 @@ shared (install) actor class Inbox(init_name : Text) = this {
     _name;
   };
 
+  
+  public query func ping(): async {name: Text; version:Text}{
+    {
+      name =_name;
+      version = _version;
+    }
+  };
+
   //=======================================================
   // Canister WALLET (ICP/BTC/ETH...)
   //=======================================================
