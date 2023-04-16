@@ -23,3 +23,5 @@ one inbox hooks to multiple dapps
 3. register canister on carrier (e.g. icevent.app/inbox ...)
 
 4. send messages to registed name through carrier dapp
+
+(carrier) integration - call drop method to send message to inbox

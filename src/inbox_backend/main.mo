@@ -29,6 +29,9 @@ shared (install) actor class Inbox(init_name : Text) = this {
   private stable var _name = init_name;
   private stable var _version = "0.0.1";
 
+  //by default if allow any carrier to drop message
+  private stable var _isCarrierOpen = false;
+
   private stable var _nextId : Nat = 1;
 
   private stable var _stableNewMessages : [Message] = [];
@@ -74,6 +77,15 @@ shared (install) actor class Inbox(init_name : Text) = this {
     {
       name = _name;
       version = _version;
+    };
+  };
+
+  public shared ({ caller }) func setOpenToCarrier(isOpen : Bool) : async Result.Result<Nat, Text> {
+    if (caller == _owner) {
+      _isCarrierOpen := isOpen;
+      #ok(1);
+    } else {
+      #err("no permission");
     };
   };
 
@@ -151,28 +163,36 @@ shared (install) actor class Inbox(init_name : Text) = this {
     drop a message to this inbox
   **/
   public shared ({ caller }) func drop(subject : Types.Subject, content : Types.Content, sender : Types.Sender) : async Result.Result<Int, Text> {
-    // if (_isAllowed(caller)) {
-    if (_isBlocked(sender)) {
-      #err("this sender is blocked by inbox!");
-    } else {
-      newMessages := List.push(
-        {
-          id = _nextId;
-          subject = subject;
-          content = content;
-          timestamp = Time.now();
-          sender = sender;
-          carrier = caller;
 
-        },
-        newMessages,
-      );
-      _nextId := _nextId +1;
-      #ok(1);
+    if (not _isCarrierOpen) {
+      if (_isAllowed(caller)) {
+        if (_isBlocked(sender)) {
+          return #err("this sender is blocked by inbox!");
+        };
+      } else {
+        return #err("not allow to send message to this inbox");
+      };
+    } else {
+
+      if (_isBlocked(sender)) {
+        return #err("this sender is blocked by inbox!");
+      };
     };
-    // } else {
-    //   #err("not allow to send message to this inbox");
-    // };
+
+    newMessages := List.push(
+      {
+        id = _nextId;
+        subject = subject;
+        content = content;
+        timestamp = Time.now();
+        sender = sender;
+        carrier = caller;
+
+      },
+      newMessages,
+    );
+    _nextId := _nextId +1;
+    #ok(1);
   };
 
   //change new message to read
