@@ -52,19 +52,36 @@ shared (install) actor class Inbox(init_name : Text) = this {
     _name;
   };
 
-  
-  public query func ping(): async {name: Text; version:Text}{
+  public shared ({ caller }) func changeName(newName : Text) : async Result.Result<Nat, Text> {
+    if (caller == _owner) {
+      _name := newName;
+      #ok(1);
+    } else {
+      #err("no permission");
+    };
+  };
+
+  public shared ({ caller }) func changeVersion(newVersion : Text) : async Result.Result<Nat, Text> {
+    if (caller == _owner) {
+      _version := newVersion;
+      #ok(1);
+    } else {
+      #err("no permission");
+    };
+  };
+
+  public query func ping() : async { name : Text; version : Text } {
     {
-      name =_name;
+      name = _name;
       version = _version;
-    }
+    };
   };
 
   //=======================================================
   // Canister WALLET (ICP/BTC/ETH...)
   //=======================================================
 
-  public shared ({ caller }) func transfer(currency : Currency,fromSub : ?Nat, amount : Nat64, to : Principal) : async Result.Result<Nat64, Text> {
+  public shared ({ caller }) func transfer(currency : Currency, fromSub : ?Nat, amount : Nat64, to : Principal) : async Result.Result<Nat64, Text> {
     if (caller == _owner) {
       switch (currency) {
         case (#ICP) {
